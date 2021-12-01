@@ -1,44 +1,42 @@
-import os
 import datetime
+import os
 from pathlib import Path
-from pprint import pprint
 from tkinter import Tk, filedialog
+from typing import List
 
 from natsort import natsorted
-import wx
-from wx import EmptyString
 
 from humanbytes import humanbytes
 
 saved_path = Path("./last_path.txt")
 
 
-def log(msg: str):
+def log(msg: str = ""):
     print(msg)
 
 
-def clean_backup_folder(path: Path):
-    files = [str(x) for x in path.glob('**/*.hip*')]
-    files = natsorted(files)
+def clean_backup_folder(hips: List[Path]) -> int:
+    hips = natsorted(hips)
 
     lists = []
     last_stem = ""
 
-    for file in list(files):
-        find = str(file).rfind('_bak') + 4
-        stem = str(file)[:find]
+    for hip in list(hips):
+        find = str(hip).rfind('_bak') + 4
+        stem = str(hip)[:find]
 
         if stem != last_stem:
             lists.append([])
 
-        lists[-1].append(file)
+        lists[-1].append(hip)
 
         last_stem = stem
 
-    root = str(path.parent).split(r'\backup')[0]
-    log(str(path.parent).split(r'\backup')[0])
+    root = str(hips[0].parent).split(r'\backup')[0]
+    log()
+    log(root)
 
-    total_deleted = 0
+    project_bytes_deleted = 0
 
     for l in lists:
         kept_hips = []
@@ -64,23 +62,28 @@ def clean_backup_folder(path: Path):
                 kept_size += file_size
             else:
                 deleted_size += file_size
-                total_deleted += file_size
+                project_bytes_deleted += file_size
                 # os.remove(hip)
 
-        hip_stem = str(Path(l[0]).stem).split("_bak")[0]
-        log('{} >>> kept: {} ({} backups) --- deleted: {} ({} backups)'
-            .format(hip_stem, humanbytes(kept_size), len(kept_hips), humanbytes(deleted_size), len(l)-len(kept_hips)))
+        stem = str(Path(l[0]).stem).split("_bak")[0]
+        ext = Path(l[0]).suffix
+        log('{}\t>>>\tkept: {} ({} backups)\t---\tdeleted: {} ({} backups)'
+            .format(stem+ext, humanbytes(kept_size), len(kept_hips), humanbytes(deleted_size), len(l)-len(kept_hips)))
 
-    log(humanbytes(total_deleted))
+    log(humanbytes(project_bytes_deleted))
+    return project_bytes_deleted
 
 
-def find_backup_subdirs(path):
-    path = Path(path)
-    for dir in path.rglob(''):
-        if dir.stem == 'backup':
+def find_backup_folders(path: Path):
+    total_deleted = 0
+    for folder in path.rglob(''):
+        if folder.stem == 'backup':
             # check if has "hip*" inside
-            hips = dir.rglob('*.hip*')
-            print(dir, len(list(hips)))
+            hips = list(folder.rglob('*.hip*'))
+            if len(hips) > 3:  # min to keep
+                total_deleted += clean_backup_folder(hips)
+
+    log(f'\nTotal deleted: {humanbytes(total_deleted)}')
 
 
 def ask_for_directory():
@@ -89,11 +92,12 @@ def ask_for_directory():
     root = Tk()
     root.withdraw()
     path = filedialog.askdirectory(initialdir=path)
+    path = Path(path)
 
-    if path:
+    if path.is_dir():
         with open(saved_path, "w") as f:
-            f.write(path)
-        find_backup_subdirs(path)
+            f.write(str(path))
+        find_backup_folders(path)
 
 
 if __name__ == '__main__':
