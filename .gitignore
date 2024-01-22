@@ -1,2 +1,4 @@
 /venv/
 /last_path.txt
+/.idea/
+/__pycache__/
